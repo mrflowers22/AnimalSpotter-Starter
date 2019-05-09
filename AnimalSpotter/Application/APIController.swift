@@ -14,6 +14,14 @@ enum HTTPMethod: String {
     case post = "POST"
 }
 
+enum NetworkError: Error {
+    case noAuth
+    case badAuth
+    case other
+    case badData
+    case noDecode
+}
+
 class APIController {
     
     private let baseUrl = URL(string: "https://lambdaanimalspotter.vapor.cloud/api")!
@@ -113,8 +121,93 @@ class APIController {
     }
     
     // create function for fetching all animal names
+    func fetchAllAnimalNames(completion: @escaping (Result<[String], NetworkError>) -> Void){
+        guard let bearer = bearer else {
+            completion(.failure(.noAuth))
+            return
+        }
+        let allAnimalsURL = baseUrl.appendingPathComponent("animals/all")
+        var urlRequest = URLRequest(url: allAnimalsURL)
+        urlRequest.httpMethod = HTTPMethod.get.rawValue
+        
+        //add auth to ths request to tell the server we are an auth user of ths api
+        urlRequest.addValue("Bearer \(bearer.token)", forHTTPHeaderField: "Authorization") //this is directly from the documentation
+        
+        URLSession.shared.dataTask(with: urlRequest) { (data, response, error) in
+            if let response = response as? HTTPURLResponse, response.statusCode == 401 {
+                completion(.failure(.badAuth)) //our auth is bad
+                return
+            }
+            
+            if let error = error {
+                print("Error inside the fetch all animal function: \(error.localizedDescription)")
+                completion(.failure(.other))
+                return
+            }
+            
+            guard let data = data else {
+                print("Error inside the data unwrapping: \(NSError())")
+                completion(.failure(.badData))
+                return
+            }
+            
+            let jd = JSONDecoder()
+            do {
+                let animalNames = try jd.decode([String].self, from: data)
+                completion(.success(animalNames))
+            } catch {
+                print("Decoding the anmal objects failed: \(error.localizedDescription)")
+                completion(.failure(.noDecode))
+                return
+            }
+        }.resume()
+        
+    }
     
     //create function for fetching a specific animal
+    func fetchDetails(for animalName: String, completion: @escaping (Result<Animal, NetworkError>) -> Void){
+        //make sure we have a bearer token
+        guard let bearer = bearer else {
+            completion(.failure(.noAuth))
+            return
+        }
+        let animalURL = baseUrl.appendingPathComponent("animals/\(animalName)")
+        var urlRequest = URLRequest(url: animalURL)
+        urlRequest.httpMethod = HTTPMethod.get.rawValue
+        
+        //add auth to ths request to tell the server we are an auth user of ths api
+        urlRequest.addValue("Bearer \(bearer.token)", forHTTPHeaderField: "Authorization") //this is directly from the documentation
+        
+        URLSession.shared.dataTask(with: urlRequest) { (data, response, error) in
+            if let response = response as? HTTPURLResponse, response.statusCode == 401 {
+                completion(.failure(.badAuth)) //our auth is bad
+                return
+            }
+            
+            if let error = error {
+                print("Error inside the fetch all animal function: \(error.localizedDescription)")
+                completion(.failure(.other))
+                return
+            }
+            
+            guard let data = data else {
+                print("Error inside the data unwrapping: \(NSError())")
+                completion(.failure(.badData))
+                return
+            }
+            
+            let jd = JSONDecoder()
+            do {
+                let animal = try jd.decode(Animal.self, from: data)
+                completion(.success(animal))
+            } catch {
+                print("Decoding the animal failed: \(error.localizedDescription)")
+                completion(.failure(.noDecode))
+                return
+            }
+            }.resume()
+        
+    }
     
     // create function to fetch image
 }

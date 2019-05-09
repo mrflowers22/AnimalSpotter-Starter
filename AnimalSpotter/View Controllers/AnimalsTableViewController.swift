@@ -10,6 +10,7 @@ import UIKit
 
 class AnimalsTableViewController: UITableViewController {
     
+    let ac = APIController()
     private var animalNames: [String] = []
 
     override func viewDidLoad() {
@@ -20,6 +21,10 @@ class AnimalsTableViewController: UITableViewController {
         super.viewDidAppear(animated)
         
         // transition to login view if conditions require
+        if ac.bearer == nil {
+            //we must not be logged in becuase we need this token/bearer
+            performSegue(withIdentifier: "LoginViewModalSegue", sender: self)
+        }
     }
 
     // MARK: - Table view data source
@@ -40,6 +45,14 @@ class AnimalsTableViewController: UITableViewController {
     // MARK: - Actions
     @IBAction func getAnimals(_ sender: UIBarButtonItem) {
         // fetch all animals from API
+        ac.fetchAllAnimalNames { (result) in
+            if let names = try? result.get() { //try and get the success value and bind it to names constant
+                DispatchQueue.main.async {
+                    self.animalNames = names
+                    self.tableView.reloadData()
+                }
+            }
+        }
     }
     
     // MARK: - Navigation
@@ -48,9 +61,18 @@ class AnimalsTableViewController: UITableViewController {
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == "ShowAnimalDetailSegue" {
             // inject dependencies
+            if let detailVC = segue.destination as? AnimalDetailViewController {
+                if let indexPath = tableView.indexPathForSelectedRow {
+                    detailVC.animalName = animalNames[indexPath.row]
+                }
+                detailVC.apiController = ac
+            }
         }
         else if segue.identifier == "LoginViewModalSegue" {
             // inject dependencies
+            if let loginVC = segue.destination as? LoginViewController {
+                loginVC.apiController = ac
+            }
         }
     }
 }
